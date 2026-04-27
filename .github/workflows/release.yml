@@ -46,7 +46,7 @@ jobs:
           prerelease: ${{ contains(github.ref_name, '-') }}
 
       - name: Bump Homebrew formula
-        uses: dawidd6/action-homebrew-bump-formula@v4
+        uses: dawidd6/action-homebrew-bump-formula@v7
         with:
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           tap: okooo5km/homebrew-tap
