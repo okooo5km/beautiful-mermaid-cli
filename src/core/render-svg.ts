@@ -1,4 +1,7 @@
 // SVG renderer — okooo5km(十里)
-// TODO(v0.1): wrap renderMermaidSVG from beautiful-mermaid.
 
-export {};
+import { renderMermaidSVG, type RenderOptions } from 'beautiful-mermaid';
+
+export function renderSvg(source: string, opts: RenderOptions = {}): string {
+  return renderMermaidSVG(source, opts);
+}
