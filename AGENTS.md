@@ -70,6 +70,13 @@ npm run lint
 npm run typecheck
 ```
 
+## Lint / Format
+
+- **ESLint**: flat config in `eslint.config.js` (ESLint 9). Uses `@typescript-eslint` + `eslint:recommended`; `eslint-config-prettier` disables formatting rules to leave them to Prettier.
+- **Prettier**: config in `.prettierrc` (`singleQuote`, `printWidth: 100`, `trailingComma: 'all'`). Run `npm run format` to auto-format. `.prettierignore` excludes `dist/` and lockfiles.
+- **Vitest**: config in `vitest.config.ts`. Tests live in `tests/**/*.test.ts`.
+- **Bun task policy**: under Bun, run `bun run test` (which invokes vitest), **never** `bun test` — Bun's native test runner is incompatible with vitest's API.
+
 ## Release
 
 ```bash
