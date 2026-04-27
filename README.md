@@ -9,7 +9,7 @@
 
 ## Features
 
-- 🎨 **Beautiful theming** — 15 built-in themes + Shiki VSCode themes + custom dual-color base
+- 🎨 **15 built-in themes** + per-color overrides for full palette control
 - ⚡ **Pure JS stack** — no browser, no Puppeteer, no native build
 - 🖼️ **SVG / PNG / ASCII** output (PNG via `@resvg/resvg-wasm`)
 - 📥 Input from **file / stdin / inline `-c`**
@@ -41,24 +41,21 @@ bm diagram.mmd -o out.svg
 # PNG with theme
 bm diagram.mmd -o out.png --theme dracula --scale 2
 
-# Inline code
-bm -c "graph LR; A-->B-->C" -o out.svg
+# Inline code (Mermaid is multiline; use $'...\n...' or a heredoc)
+bm -c $'graph LR\n  A-->B-->C' -o out.svg
 
 # stdin
 cat diagram.mmd | bm -o out.svg
 
-# ASCII to terminal
-bm ascii diagram.mmd --unicode --color-mode truecolor
+# ASCII (Unicode box-drawing by default, --ascii for + - | fallback)
+bm ascii diagram.mmd --color-mode truecolor
+bm ascii diagram.mmd --ascii
 
 # List themes
 bm themes
 ```
 
 See `bm --help` for all options.
-
-## Status
-
-🚧 **Pre-release.** v0.1 MVP is under construction. See [PLAN.md](./doc/PLAN.md) for the full roadmap.
 
 ## License
 
