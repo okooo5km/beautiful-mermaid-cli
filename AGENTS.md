@@ -21,7 +21,7 @@ A command-line wrapper around [`beautiful-mermaid`](https://github.com/lukilabs/
 - Runtime: Node.js ≥ 20 / Bun ≥ 1.0 (dual support)
 - Build: `tsc` → `dist/`
 - Render core: `beautiful-mermaid`
-- PNG: `@resvg/resvg-wasm` (optional dep, WASM)
+- PNG: `@resvg/resvg-wasm` (optional dep, WASM) — loaded via `await import()` in `src/core/render-png.ts`; the wasm binary is located at runtime via `createRequire(import.meta.url).resolve('@resvg/resvg-wasm/index_bg.wasm')` and read with `fs.readFile`, so layout works under npm, pnpm, and Bun.
 - CLI: `commander`
 - Test: `vitest`
 
@@ -46,6 +46,12 @@ doc/                      # Design docs (architecture, theming, png)
 - **No emojis in source code** unless explicitly requested.
 - **Strict TS**: `strict: true`, `noUncheckedIndexedAccess: true`.
 - **ESM only**: top-level `"type": "module"`, use `import`/`export`, no CommonJS.
+- **Exit code semantics** (single source of truth: `src/utils/errors.ts`):
+  - `0` success
+  - `1` `WasmError` / unclassified
+  - `2` `UsageError` / `ThemeNotFoundError` / commander unknown-option
+  - `3` `ParseError` (Mermaid parse / render failure)
+  - `4` `IoError` (file read/write failure)
 
 ## CI / Release
 
