@@ -11,11 +11,13 @@ const CLI = path.resolve('dist', 'cli.js');
 
 beforeAll(() => {
   // tests/cli.test.ts spawns dist/cli.js — make sure the build is up to date.
-  const tsc = path.resolve('node_modules', '.bin', process.platform === 'win32' ? 'tsc.cmd' : 'tsc');
-  if (!existsSync(tsc)) throw new Error(`tsc not found at ${tsc}`);
-  const r = spawnSync(tsc, [], { stdio: 'inherit' });
+  // Run typescript's bin/tsc JS entry directly via Node so the call is portable
+  // across Linux/macOS/Windows (avoids .cmd shim spawn issues on Windows).
+  const tscJs = path.resolve('node_modules', 'typescript', 'bin', 'tsc');
+  if (!existsSync(tscJs)) throw new Error(`tsc entry not found at ${tscJs}`);
+  const r = spawnSync(process.execPath, [tscJs], { stdio: 'inherit' });
   if (r.status !== 0) throw new Error(`tsc failed with status ${r.status}`);
-}, 30_000);
+}, 60_000);
 
 interface RunOptions {
   input?: string;
