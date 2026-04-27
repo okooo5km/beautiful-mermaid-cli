@@ -1,0 +1,69 @@
+{
+  "name": "beautiful-mermaid-cli",
+  "version": "0.0.0",
+  "description": "Render Mermaid diagrams as beautiful SVG/PNG/ASCII from the command line, powered by beautiful-mermaid.",
+  "type": "module",
+  "bin": {
+    "bm": "./dist/cli.js",
+    "beautiful-mermaid": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "beautiful-mermaid": "latest",
+    "commander": "^14.0.0",
+    "picocolors": "^1.1.1"
+  },
+  "optionalDependencies": {
+    "@resvg/resvg-wasm": "^2.6.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.3.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.0.0"
+  },
+  "keywords": [
+    "mermaid",
+    "diagram",
+    "cli",
+    "svg",
+    "png",
+    "ascii",
+    "beautiful-mermaid",
+    "renderer"
+  ],
+  "author": "okooo5km(十里) <yetiannow@gmail.com>",
+  "license": "MIT",
+  "homepage": "https://github.com/okooo5km/beautiful-mermaid-cli#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/okooo5km/beautiful-mermaid-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/okooo5km/beautiful-mermaid-cli/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

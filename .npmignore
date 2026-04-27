@@ -1,0 +1,13 @@
+src/
+tests/
+doc/
+.github/
+*.config.*
+tsconfig*.json
+.eslintrc*
+.prettierrc*
+.editorconfig
+.gitignore
+*.log
+coverage/
+.DS_Store

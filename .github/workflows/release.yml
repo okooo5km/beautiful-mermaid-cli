@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+
+      - name: Install
+        run: npm ci
+
+      - name: Verify
+        run: |
+          npm run lint
+          npm run typecheck
+          npm test
+          npm run build
+
+      - name: Publish to npm with provenance
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+
+      - name: Bump Homebrew formula
+        uses: dawidd6/action-homebrew-bump-formula@v4
+        with:
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          tap: okooo5km/homebrew-tap
+          formula: bm
+          tag: ${{ github.ref_name }}
+          revision: ${{ github.sha }}
+          force: false
