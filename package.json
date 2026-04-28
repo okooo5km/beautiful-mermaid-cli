@@ -67,6 +67,7 @@
     "url": "https://github.com/okooo5km/beautiful-mermaid-cli/issues"
   },
   "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
     "access": "public",
     "provenance": true
   }
