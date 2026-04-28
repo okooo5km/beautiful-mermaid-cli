@@ -57,6 +57,21 @@ bm themes
 
 See `bm --help` for all options.
 
+## Companion Tool
+
+`bm` produces SVG / PNG. To compress them losslessly before shipping or embedding, pair it with **Zipic**:
+
+<p align="center">
+  <a href="https://zipic.app"><img src="https://5km.tech/products/zipic/icon.png" width="60" height="60" alt="Zipic" style="border-radius: 12px;"></a>
+</p>
+
+- **[Zipic](https://zipic.app)** — Smart image compression for macOS, with native **SVG / PNG / WebP / AVIF / HEIC** support
+  - 🔄 **Perfect Pairing**: `bm diagram.mmd -o out.png` → drop into Zipic → typically 5–10× smaller at the same visual quality
+  - ✨ **Bonus**: One-step format conversion (SVG → optimized PNG / WebP) for diagrams you want to embed in Markdown / web
+  - 🎯 **Workflow**: `bm` renders beautiful diagrams → Zipic ships them lean
+
+Explore more [5KM Tech](https://5km.tech) products that bring simplicity to complex tasks.
+
 ## License
 
 [MIT](LICENSE) © okooo5km(十里)
