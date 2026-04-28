@@ -77,6 +77,41 @@ loading. The wasm path is intentional. If a future version of resvg-wasm
 adds CSS L5 support upstream, `svg-flatten.ts` becomes vestigial and can
 be deleted in one shot.
 
+## Agent Interface Contract
+
+Since v0.2.0, every subcommand accepts `--json` for machine-readable output.
+Treat this as a **stable contract**:
+
+- **stdout** carries JSON success payloads; **stderr** carries JSON error payloads.
+  Never mix.
+- Each payload is one line of JSON terminated by `\n`. The first key is always
+  `"schema_version": 1`.
+- Exit codes are part of the contract (see `src/utils/errors.ts`):
+  `0` success, `1` unclassified, `2` usage / unknown theme / guard violation,
+  `3` parse error, `4` I/O error.
+- `--json` mode emits **no ANSI escapes** (errors skip `picocolors`).
+- `--json` is opt-in; no flags change default human-facing output.
+
+What is guaranteed not to break inside `schema_version: 1`:
+
+- Existing field names and types in success payloads (`themes`, `format`,
+  `output`, `bytes`, `dimensions`, `svg`, `text`, `lines`, `theme`).
+- The error envelope shape: `{ success: false, error: { code, type, message, ... } }`.
+- Existing exit code numbers and their meanings.
+
+What may change inside v1 (additive only):
+
+- **New optional fields** on success or error payloads.
+- New theme names appearing in `themes`.
+- New error `type` values when new error classes are added.
+
+Anything bigger — renaming a field, removing a field, changing an exit code,
+changing the error envelope shape — bumps `schema_version` to `2` and is a
+breaking change announced in the changelog.
+
+The full per-command JSON schema (with examples) lives in
+[`doc/agent-interface.md`](doc/agent-interface.md).
+
 ## Conventions
 
 - **Code & comments**: English only.

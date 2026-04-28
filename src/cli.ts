@@ -6,7 +6,16 @@ import { readFileSync } from 'node:fs';
 import { themesCommand } from './commands/themes.js';
 import { renderAction, type RenderCommandFlags } from './commands/render.js';
 import { asciiAction } from './commands/ascii.js';
-import { CliError, UsageError, formatError } from './utils/errors.js';
+import { doctorCommand } from './commands/doctor.js';
+import { listThemeNames } from './core/options.js';
+import {
+  CliError,
+  ThemeNotFoundError,
+  UsageError,
+  formatError,
+  errorToJson,
+  suggestThemeName,
+} from './utils/errors.js';
 import type { AsciiCliFlags } from './core/render-ascii.js';
 
 const pkg = JSON.parse(
@@ -28,7 +37,11 @@ function addCommonRenderFlags(cmd: Command): Command {
   return cmd
     .option('-c, --code <text>', 'Inline Mermaid source')
     .option('-o, --output <file>', 'Output file')
-    .option('-t, --theme <name>', 'Theme name (run `bm themes` to list)')
+    .addOption(
+      new Option('-t, --theme <name>', 'Theme name (run `bm themes` to list)').choices(
+        listThemeNames(),
+      ),
+    )
     .option('--bg <hex>', 'Background color')
     .option('--fg <hex>', 'Foreground / text color')
     .option('--line <hex>', 'Edge color')
@@ -37,11 +50,12 @@ function addCommonRenderFlags(cmd: Command): Command {
     .option('--surface <hex>', 'Node fill tint')
     .option('--border <hex>', 'Node/group border color')
     .option('--font <family>', 'Font family')
-    .option('--padding <n>', 'Canvas padding (px)', intParser)
-    .option('--node-spacing <n>', 'Sibling node spacing', intParser)
-    .option('--layer-spacing <n>', 'Layer spacing', intParser)
-    .option('--component-spacing <n>', 'Disconnected component spacing', intParser)
-    .option('--transparent', 'Transparent background');
+    .option('--padding <n>', 'Canvas padding (px, default: 40)', intParser)
+    .option('--node-spacing <n>', 'Sibling node spacing (default: 24)', intParser)
+    .option('--layer-spacing <n>', 'Layer spacing (default: 40)', intParser)
+    .option('--component-spacing <n>', 'Disconnected component spacing (default: 24)', intParser)
+    .option('--transparent', 'Transparent background')
+    .option('--json', 'Emit JSON output for AI agents (stdout=data, stderr=errors)');
 }
 
 const program = new Command();
@@ -49,14 +63,35 @@ program
   .name('bm')
   .description('Render Mermaid diagrams as beautiful SVG/PNG/ASCII')
   .version(pkg.version)
-  .exitOverride();
+  .exitOverride()
+  // Suppress commander's auto-written error line; the top-level catch handles
+  // formatting (plain or JSON) so we don't double-emit on stderr.
+  .configureOutput({ writeErr: () => {} })
+  .addHelpText(
+    'after',
+    `
+Exit codes:
+  0  Success
+  1  Unclassified error (e.g. WASM init failure)
+  2  Usage error (bad flags, unknown theme, PNG to stdout, --json+PNG without -o)
+  3  Parse error (invalid Mermaid source)
+  4  I/O error (file read/write failure)
+
+Environment:
+  NO_COLOR     Disable ANSI color output (any non-empty value)
+  FORCE_COLOR  Force ANSI color output even when stdout is not a TTY
+
+For AI agents, use --json on any subcommand for stable, machine-readable output.
+The JSON contract is documented in doc/agent-interface.md (schema_version=1).
+`,
+  );
 
 const renderCmd = program
   .command('render [input]', { isDefault: true })
   .description('Render Mermaid to SVG/PNG (default subcommand)');
 addCommonRenderFlags(renderCmd)
   .addOption(new Option('-f, --format <fmt>', 'Output format').choices(['svg', 'png']))
-  .option('--scale <n>', 'PNG zoom factor (default 1)', floatParser)
+  .option('--scale <n>', 'PNG zoom factor (default: 1)', floatParser)
   .option('--width <n>', 'PNG output width (px)', intParser)
   .action((input: string | undefined, opts: RenderCommandFlags) => renderAction(input, opts));
 
@@ -91,26 +126,64 @@ addCommonRenderFlags(asciiCmd)
       colorMode: opts.colorMode as AsciiCliFlags['colorMode'],
       output: opts.output as string | undefined,
       code: opts.code as string | undefined,
+      json: opts.json as boolean | undefined,
     }),
   );
+
+program
+  .command('doctor')
+  .description('Report environment (version, node, fonts, wasm) for self-checks')
+  .option('--json', 'Emit JSON output for AI agents')
+  .action((opts: { json?: boolean }) => doctorCommand({ json: opts.json ?? false }));
 
 program
   .command('themes')
   .description('List available built-in themes')
   .option('-q, --quiet', 'Print only theme names, no color blocks')
-  .action((opts: { quiet?: boolean }) => themesCommand({ quiet: opts.quiet ?? false }));
+  .option('--json', 'Emit JSON output for AI agents')
+  .action((opts: { quiet?: boolean; json?: boolean }) =>
+    themesCommand({ quiet: opts.quiet ?? false, json: opts.json ?? false }),
+  );
+
+// Detect --json across the whole argv so the top-level catch can choose the
+// right error format even when commander failed before parsing reached the
+// subcommand action.
+const wantsJson = process.argv.includes('--json');
+
+function emitError(err: unknown, code: number): never {
+  if (wantsJson) {
+    process.stderr.write(JSON.stringify(errorToJson(err)) + '\n');
+  } else {
+    process.stderr.write(formatError(err) + '\n');
+  }
+  process.exit(code);
+}
+
+function translateCommanderError(err: CommanderError): CliError {
+  // Surface a friendlier, suggestion-bearing error when the user passes an
+  // unknown --theme value (commander rejects it via `.choices()` before our
+  // action runs, so we re-route through ThemeNotFoundError here).
+  if (err.code === 'commander.invalidArgument') {
+    const m = /option '[^']*--theme[^']*' argument '([^']+)' is invalid/.exec(err.message);
+    if (m) {
+      const bad = m[1]!;
+      return new ThemeNotFoundError(bad, suggestThemeName(bad, listThemeNames()));
+    }
+  }
+  // Strip commander's leading "error: " prefix for a cleaner message.
+  const cleaned = err.message.replace(/^error:\s*/, '');
+  return new UsageError(cleaned);
+}
 
 program.parseAsync(process.argv).catch((err: unknown) => {
   if (err instanceof CommanderError) {
     if (err.exitCode === 0) process.exit(0); // help / version
-    process.stderr.write(formatError(new UsageError(err.message)) + '\n');
-    process.exit(2);
+    const translated = translateCommanderError(err);
+    emitError(translated, translated.code);
   }
   if (err instanceof CliError) {
-    process.stderr.write(formatError(err) + '\n');
-    process.exit(err.code);
+    emitError(err, err.code);
   }
   const msg = err instanceof Error ? err.message : String(err);
-  process.stderr.write(formatError(new Error(msg)) + '\n');
-  process.exit(1);
+  emitError(new Error(msg), 1);
 });

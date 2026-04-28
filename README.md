@@ -57,6 +57,46 @@ bm themes
 
 See `bm --help` for all options.
 
+## Use with AI Agents
+
+Every subcommand accepts `--json` for stable, machine-readable output. JSON data is
+written to **stdout**; JSON-encoded errors go to **stderr**. Exit codes are part of
+the contract (see below). Mermaid source can be supplied as a path argument, via
+`-c <text>`, or by piping to stdin — `bm` never prompts.
+
+```bash
+# List themes as JSON
+bm themes --json
+
+# Render and capture metadata + path (binary still on disk)
+bm render --json -c $'graph LR\n  A-->B' -o out.svg
+
+# No -o: SVG is inlined in the JSON payload (no temp file needed)
+bm render --json -c $'graph LR\n  A-->B'
+
+# ASCII text is always inlined (small payload)
+bm ascii --json -c $'graph LR\n  A-->B'
+
+# Self-check the environment (version, fonts, wasm)
+bm doctor --json
+
+# Errors are JSON too, on stderr; exit code is non-zero
+bm render --json --theme drakula -c $'graph LR\n  A-->B' 2>err.json; echo $?
+```
+
+**Exit codes** (stable across 0.x):
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | Unclassified error (e.g. WASM init) |
+| 2 | Usage error (bad flags, unknown theme, PNG-to-stdout, `--json`+PNG without `-o`) |
+| 3 | Parse error (invalid Mermaid source) |
+| 4 | I/O error (file read/write) |
+
+Every JSON payload begins with `"schema_version": 1`. Schema details and per-command
+field tables live in [`doc/agent-interface.md`](doc/agent-interface.md).
+
 ## Companion Tool
 
 `bm` produces SVG / PNG. To compress them losslessly before shipping or embedding, pair it with **Zipic**:

@@ -100,6 +100,59 @@ function extractContext(message: string, source: string): string | null {
   return out.join('\n');
 }
 
+export interface ErrorJson {
+  schema_version: 1;
+  success: false;
+  error: {
+    code: ExitCode | 1;
+    type: string;
+    message: string;
+    suggestions?: string[];
+    source?: string;
+  };
+}
+
+export function errorToJson(err: unknown): ErrorJson {
+  if (err instanceof ThemeNotFoundError) {
+    return {
+      schema_version: 1,
+      success: false,
+      error: {
+        code: err.code,
+        type: err.name,
+        message: err.message,
+        suggestions: err.suggestions,
+      },
+    };
+  }
+  if (err instanceof ParseError) {
+    return {
+      schema_version: 1,
+      success: false,
+      error: {
+        code: err.code,
+        type: err.name,
+        message: err.message,
+        ...(err.source ? { source: err.source } : {}),
+      },
+    };
+  }
+  if (err instanceof CliError) {
+    return {
+      schema_version: 1,
+      success: false,
+      error: { code: err.code, type: err.name, message: err.message },
+    };
+  }
+  const msg = err instanceof Error ? err.message : String(err);
+  const type = err instanceof Error ? err.name || 'Error' : 'Error';
+  return {
+    schema_version: 1,
+    success: false,
+    error: { code: 1, type, message: msg },
+  };
+}
+
 export function formatError(err: unknown): string {
   if (err instanceof ParseError) {
     const head = pc.red(pc.bold('Parse error: ')) + err.message;

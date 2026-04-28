@@ -6,6 +6,20 @@ import { listThemeNames } from '../core/options.js';
 export interface ThemesCommandOptions {
   quiet?: boolean;
   noColor?: boolean;
+  json?: boolean;
+}
+
+interface ThemeJsonEntry {
+  name: string;
+  bg: string;
+  fg: string;
+  accent?: string;
+}
+
+interface ThemesJsonOutput {
+  schema_version: 1;
+  themes: ThemeJsonEntry[];
+  count: number;
 }
 
 function hexToAnsiBlock(hex: string): string {
@@ -19,13 +33,31 @@ function hexToAnsiBlock(hex: string): string {
 }
 
 export function themesCommand(opts: ThemesCommandOptions = {}): void {
+  const names = listThemeNames();
+
+  if (opts.json) {
+    const themes: ThemeJsonEntry[] = names.map((name) => {
+      const t = THEMES[name]!;
+      const entry: ThemeJsonEntry = { name, bg: t.bg, fg: t.fg };
+      if (t.accent) entry.accent = t.accent;
+      return entry;
+    });
+    const payload: ThemesJsonOutput = {
+      schema_version: 1,
+      themes,
+      count: themes.length,
+    };
+    process.stdout.write(JSON.stringify(payload) + '\n');
+    return;
+  }
+
   const useColor =
     !opts.noColor &&
     !opts.quiet &&
     !process.env.NO_COLOR &&
     Boolean(process.stdout.isTTY);
 
-  for (const name of listThemeNames()) {
+  for (const name of names) {
     if (opts.quiet) {
       process.stdout.write(`${name}\n`);
       continue;

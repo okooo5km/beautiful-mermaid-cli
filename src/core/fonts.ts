@@ -74,6 +74,21 @@ export function loadSystemFontBuffers(): Promise<LoadedFonts> {
   return cached;
 }
 
+/** Lightweight probe: returns family names whose font files exist on disk,
+ *  in candidate order, deduplicated. Does not read or cache the font bytes —
+ *  used by `bm doctor` for environment reporting. */
+export function probeAvailableFontFamilies(): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const { path, family } of candidatesForPlatform()) {
+    if (!existsSync(path)) continue;
+    if (seen.has(family)) continue;
+    seen.add(family);
+    out.push(family);
+  }
+  return out;
+}
+
 async function loadOnce(): Promise<LoadedFonts> {
   const candidates = candidatesForPlatform();
   const buffers: Uint8Array[] = [];
