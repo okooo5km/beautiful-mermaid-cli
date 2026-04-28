@@ -133,7 +133,7 @@ The full per-command JSON schema (with examples) lives in
 - Release (`release.yml`) triggered by `v*` git tag → npm publish → GitHub Release → Homebrew formula bump.
 - **Trusted Publishing (OIDC)**: `npm publish` runs without `NPM_TOKEN`. The workflow declares `id-token: write` and the package has a Trusted Publisher configured at `npmjs.com/package/beautiful-mermaid-cli/access` pointing at this repo + `release.yml`. Provenance attestation is automatic.
 - **release.yml pins Node 24** (not the LTS-22 used by `ci.yml`) — Node 22's bundled npm 10.x lacks Trusted Publishing support, and `npm install -g npm@latest` mid-job hits a known self-upgrade bug (`MODULE_NOT_FOUND: promise-retry`). Node 24 ships npm 11.5+ out of the box.
-- **Homebrew tap**: `okooo5km/homebrew-tap` (existing shared tap, also hosts `mms`, `ogvs`, `pngoptim`, `svgift`). The bump action opens a PR; merge it manually to publish the new formula.
+- **Homebrew tap**: `okooo5km/homebrew-tap` (existing shared tap, also hosts `mms`, `ogvs`, `pngoptim`, `svgift`). The release workflow opens a bump PR via `dawidd6/action-homebrew-bump-formula` and immediately squash-merges it via `gh pr merge` (no manual step). Direct merge is safe because the action computes `url` + `sha256` from the actual tarball; no human review can catch what `brew style` cannot. If a future release needs to be reviewed before publishing, drop the `Auto-merge Homebrew bump PR` step in `release.yml` for that run.
 - Local `npm publish` is reserved for the one-time `0.0.0` placeholder used to claim the package name on npm. All tagged releases must flow through CI so provenance is intact.
 
 ## Documentation
@@ -172,7 +172,6 @@ git checkout main && git pull
 npm run lint && npm run typecheck && npm test && npm run build  # pre-flight
 npm version patch  # or minor / major
 git push --follow-tags
-# GitHub Actions handles npm publish (Trusted Publishing) + Release + Homebrew bump PR
+# GitHub Actions handles npm publish (Trusted Publishing) + Release + Homebrew bump (auto-merged)
 gh run watch --workflow Release --exit-status
-gh pr list --repo okooo5km/homebrew-tap   # then merge the auto-generated bump PR
 ```

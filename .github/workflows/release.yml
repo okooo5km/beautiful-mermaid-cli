@@ -52,3 +52,29 @@ jobs:
           tag: ${{ github.ref_name }}
           revision: ${{ github.sha }}
           force: false
+
+      - name: Auto-merge Homebrew bump PR
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          TAP_REPO: okooo5km/homebrew-tap
+        run: |
+          # action-homebrew-bump-formula opens a PR on branch `bump-{formula}-{version}`.
+          # Personal tap has no branch protection / required reviews, so we squash-merge
+          # it immediately. Sha256 + url are computed from the actual tarball by the
+          # bump action, so direct merge is safe.
+          VERSION="${GITHUB_REF_NAME#v}"
+          BRANCH="bump-bm-${VERSION}"
+          PR=""
+          for i in 1 2 3 4 5 6; do
+            PR=$(gh pr list --repo "$TAP_REPO" --head "$BRANCH" --state open \
+                   --json number --jq '.[0].number // empty')
+            [ -n "$PR" ] && break
+            echo "PR not visible yet, retrying in 5s..."
+            sleep 5
+          done
+          if [ -z "$PR" ]; then
+            echo "::error::No bump PR found on branch $BRANCH after 30s"
+            exit 1
+          fi
+          echo "Merging PR #$PR on $TAP_REPO"
+          gh pr merge "$PR" --repo "$TAP_REPO" --squash --delete-branch
