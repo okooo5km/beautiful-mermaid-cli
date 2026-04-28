@@ -31,13 +31,51 @@ A command-line wrapper around [`beautiful-mermaid`](https://github.com/lukilabs/
 src/
 ├── cli.ts                # Entry, shebang + commander wiring
 ├── commands/             # Subcommands (render / ascii / themes)
-├── core/                 # Render pipeline (svg / png / ascii / options)
+├── core/
+│   ├── options.ts        # Theme + flag → RenderOptions builder
+│   ├── render-svg.ts     # SVG pass-through to beautiful-mermaid
+│   ├── render-ascii.ts   # ASCII / Unicode renderer
+│   ├── render-png.ts     # SVG → PNG via resvg-wasm (uses svg-flatten + fonts)
+│   ├── svg-flatten.ts    # CSS var() / color-mix() → concrete hex (PNG-only)
+│   └── fonts.ts          # System font probing, returns Uint8Array buffers
 ├── io/                   # input.ts (file/stdin/-c), output.ts
 └── utils/                # format inference, error formatting
 tests/
 └── fixtures/             # Sample .mmd files per diagram type
 doc/                      # Design docs (architecture, theming, png)
 ```
+
+## PNG rendering pipeline (resvg-wasm constraints)
+
+PNG output flows through `@resvg/resvg-wasm`, which has two non-obvious
+limitations that bit us in v0.1.0 and shaped the current pipeline:
+
+1. **CSS Color L4/L5 unsupported.** beautiful-mermaid's SVG output uses
+   `var(--xxx)` and `color-mix(in srgb, ...)` for every color. resvg
+   silently falls back to black on any unresolved color expression →
+   the result is huge black rectangles with no text. Browsers (and
+   macOS Preview) handle this fine, but resvg cannot. Fix: `src/core/svg-flatten.ts`
+   walks the SVG once before render, resolves all `var()` and `color-mix()`
+   to concrete hex literals, strips `@import url(...)` (resvg cannot fetch
+   network resources), and rewrites `font-family` to a name we have actually
+   loaded. Only the PNG path is flattened; SVG output is the original
+   beautiful-mermaid string.
+2. **System font loading is broken in wasm.** The `loadSystemFonts`,
+   `fontDirs`, and `fontFiles` options on `Resvg` silently fail in the
+   wasm runtime because wasm has no filesystem enumeration. The native
+   `@resvg/resvg-js` package supports them, but we deliberately stick
+   with wasm to keep "no native build" guarantees. The only working
+   path for fonts is `font.fontBuffers: Uint8Array[]` — pre-read font
+   files in JS and hand the bytes over. `src/core/fonts.ts` probes a
+   short, per-OS list of well-known system font paths (macOS Helvetica,
+   Linux DejaVu / Liberation, Windows Arial / Segoe) and caches the
+   loaded buffers per process. If nothing exists, text won't render but
+   the rest of the diagram will — graceful degradation.
+
+**Consequence**: do NOT switch to `@resvg/resvg-js` to "simplify" font
+loading. The wasm path is intentional. If a future version of resvg-wasm
+adds CSS L5 support upstream, `svg-flatten.ts` becomes vestigial and can
+be deleted in one shot.
 
 ## Conventions
 
