@@ -3,6 +3,8 @@
 import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
 import { WasmError } from '../utils/errors.js';
+import { flattenSvgForRaster } from './svg-flatten.js';
+import { loadSystemFontBuffers } from './fonts.js';
 
 type ResvgModule = typeof import('@resvg/resvg-wasm');
 
@@ -48,15 +50,25 @@ export interface PngRenderOptions {
 }
 
 export async function svgToPng(svg: string, opts: PngRenderOptions = {}): Promise<Uint8Array> {
-  const { Resvg } = await ensureWasm();
+  const [{ Resvg }, fonts] = await Promise.all([ensureWasm(), loadSystemFontBuffers()]);
+
+  // resvg-wasm does not understand CSS L4/L5 features (var(), color-mix) emitted
+  // by beautiful-mermaid; flatten them to concrete hex first. Also rewrite the
+  // SVG's font-family to a name we have actually loaded into fontBuffers.
+  const flat = flattenSvgForRaster(svg, { fontFamily: fonts.primaryFamily });
+
   const fitTo =
     opts.width !== undefined
       ? ({ mode: 'width', value: opts.width } as const)
       : opts.scale !== undefined
         ? ({ mode: 'zoom', value: opts.scale } as const)
         : ({ mode: 'original' } as const);
-  const inst = new Resvg(svg, {
+  const inst = new Resvg(flat, {
     fitTo,
+    font: {
+      fontBuffers: fonts.buffers,
+      defaultFontFamily: fonts.primaryFamily,
+    },
     ...(opts.background ? { background: opts.background } : {}),
   });
   try {
