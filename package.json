@@ -4,8 +4,8 @@
   "description": "Render Mermaid diagrams as beautiful SVG/PNG/ASCII from the command line, powered by beautiful-mermaid.",
   "type": "module",
   "bin": {
-    "bm": "./dist/cli.js",
-    "beautiful-mermaid": "./dist/cli.js"
+    "bm": "dist/cli.js",
+    "beautiful-mermaid": "dist/cli.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
