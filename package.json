@@ -1,6 +1,6 @@
 {
   "name": "beautiful-mermaid-cli",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Render Mermaid diagrams as beautiful SVG/PNG/ASCII from the command line, powered by beautiful-mermaid.",
   "type": "module",
   "bin": {

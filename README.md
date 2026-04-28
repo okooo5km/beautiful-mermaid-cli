@@ -97,6 +97,28 @@ bm render --json --theme drakula -c $'graph LR\n  A-->B' 2>err.json; echo $?
 Every JSON payload begins with `"schema_version": 1`. Schema details and per-command
 field tables live in [`doc/agent-interface.md`](doc/agent-interface.md).
 
+## Install as a Claude Skill
+
+The repo ships an [Agent Skill](https://docs.claude.com/en/docs/claude-code/skills)
+at [`skills/beautiful-mermaid/`](skills/beautiful-mermaid/SKILL.md). Once installed,
+Claude Code, Cursor, Codex, and other agents that support the `SKILL.md` spec will
+auto-discover the `bm` CLI when the user asks to render a Mermaid diagram.
+
+```bash
+# Recommended — vercel-labs/skills installer (project- or user-scoped)
+npx -y skills add okooo5km/beautiful-mermaid-cli
+
+# Manual drop-in
+git clone https://github.com/okooo5km/beautiful-mermaid-cli /tmp/bm
+cp -r /tmp/bm/skills/beautiful-mermaid .claude/skills/
+
+# Or via the GitHub CLI extension (where supported)
+gh skill install okooo5km/beautiful-mermaid-cli
+```
+
+The skill assumes `bm` is on `PATH`. If it isn't, install via
+`npm i -g beautiful-mermaid-cli` or `brew install okooo5km/tap/bm`.
+
 ## Companion Tool
 
 `bm` produces SVG / PNG. To compress them losslessly before shipping or embedding, pair it with **Zipic**:

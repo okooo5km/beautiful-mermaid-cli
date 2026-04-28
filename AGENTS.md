@@ -43,6 +43,10 @@ src/
 tests/
 └── fixtures/             # Sample .mmd files per diagram type
 doc/                      # Design docs (architecture, theming, png)
+skills/
+└── beautiful-mermaid/    # Claude Agent Skill (SKILL.md + reference.md)
+                          # Auto-discovered by `npx skills add okooo5km/beautiful-mermaid-cli`.
+                          # Not bundled in the npm tarball — agents pull it from GitHub.
 ```
 
 ## PNG rendering pipeline (resvg-wasm constraints)
@@ -125,6 +129,10 @@ The full per-command JSON schema (with examples) lives in
   - `2` `UsageError` / `ThemeNotFoundError` / commander unknown-option
   - `3` `ParseError` (Mermaid parse / render failure)
   - `4` `IoError` (file read/write failure)
+- **Agent Skill sync**: when the `--json` contract, exit codes, flag set, or theme
+  catalog changes, update `skills/beautiful-mermaid/SKILL.md` and
+  `skills/beautiful-mermaid/reference.md` in the same change. `reference.md` does
+  not duplicate the schema — it summarizes and links to `doc/agent-interface.md`.
 
 ## CI / Release
 
