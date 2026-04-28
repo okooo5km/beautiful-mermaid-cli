@@ -56,9 +56,12 @@ doc/                      # Design docs (architecture, theming, png)
 ## CI / Release
 
 - All workflows use **latest major versions** of GitHub Actions (see `doc/PLAN.md` §9.5 lock table).
-- Node matrix: 20 / 22 (LTS only — 18 EOL'd 2025-04 and is excluded).
-- Releases triggered by `v*` git tag → npm with provenance + GitHub Release + Homebrew tap auto-bump.
-- Local `npm publish` is **not used** — provenance requires CI.
+- CI matrix (`ci.yml`): Node 20 / 22 (LTS only — 18 EOL'd 2025-04) × Ubuntu / macOS / Windows + Bun on all three OS.
+- Release (`release.yml`) triggered by `v*` git tag → npm publish → GitHub Release → Homebrew formula bump.
+- **Trusted Publishing (OIDC)**: `npm publish` runs without `NPM_TOKEN`. The workflow declares `id-token: write` and the package has a Trusted Publisher configured at `npmjs.com/package/beautiful-mermaid-cli/access` pointing at this repo + `release.yml`. Provenance attestation is automatic.
+- **release.yml pins Node 24** (not the LTS-22 used by `ci.yml`) — Node 22's bundled npm 10.x lacks Trusted Publishing support, and `npm install -g npm@latest` mid-job hits a known self-upgrade bug (`MODULE_NOT_FOUND: promise-retry`). Node 24 ships npm 11.5+ out of the box.
+- **Homebrew tap**: `okooo5km/homebrew-tap` (existing shared tap, also hosts `mms`, `ogvs`, `pngoptim`, `svgift`). The bump action opens a PR; merge it manually to publish the new formula.
+- Local `npm publish` is reserved for the one-time `0.0.0` placeholder used to claim the package name on npm. All tagged releases must flow through CI so provenance is intact.
 
 ## Documentation
 
@@ -76,6 +79,12 @@ npm run lint
 npm run typecheck
 ```
 
+## Package.json conventions
+
+- `bin` paths must **not** have a leading `./` — npm 11+ strict validation rejects them and `npm pkg fix` strips them. Wrong: `"bm": "./dist/cli.js"`. Right: `"bm": "dist/cli.js"`.
+- `publishConfig.registry` is pinned to `https://registry.npmjs.org/` so `npm publish` always targets the official registry, even when the developer's local `npm config get registry` points at a mirror (e.g. `npmmirror`).
+- `publishConfig.provenance: true` is set so CI publishes always carry provenance. One-off local placeholder publishes must override with `--provenance=false` because they lack OIDC.
+
 ## Lint / Format
 
 - **ESLint**: flat config in `eslint.config.js` (ESLint 9). Uses `@typescript-eslint` + `eslint:recommended`; `eslint-config-prettier` disables formatting rules to leave them to Prettier.
@@ -87,7 +96,10 @@ npm run typecheck
 
 ```bash
 git checkout main && git pull
+npm run lint && npm run typecheck && npm test && npm run build  # pre-flight
 npm version patch  # or minor / major
 git push --follow-tags
-# GitHub Actions handles npm publish + Release + Homebrew bump
+# GitHub Actions handles npm publish (Trusted Publishing) + Release + Homebrew bump PR
+gh run watch --workflow Release --exit-status
+gh pr list --repo okooo5km/homebrew-tap   # then merge the auto-generated bump PR
 ```
