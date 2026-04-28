@@ -1,23 +1,13 @@
 // okooo5km(十里)
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { existsSync } from 'node:fs';
 
+// dist/ is built once by tests/global-setup.ts (vitest globalSetup).
 const CLI = path.resolve('dist', 'cli.js');
-
-beforeAll(() => {
-  // tests/cli.test.ts spawns dist/cli.js — make sure the build is up to date.
-  // Run typescript's bin/tsc JS entry directly via Node so the call is portable
-  // across Linux/macOS/Windows (avoids .cmd shim spawn issues on Windows).
-  const tscJs = path.resolve('node_modules', 'typescript', 'bin', 'tsc');
-  if (!existsSync(tscJs)) throw new Error(`tsc entry not found at ${tscJs}`);
-  const r = spawnSync(process.execPath, [tscJs], { stdio: 'inherit' });
-  if (r.status !== 0) throw new Error(`tsc failed with status ${r.status}`);
-}, 60_000);
 
 interface RunOptions {
   input?: string;
