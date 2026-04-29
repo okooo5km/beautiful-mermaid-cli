@@ -1,8 +1,6 @@
 // SVG renderer — okooo5km(十里)
 
 import { renderMermaidSVG, type RenderOptions } from 'beautiful-mermaid';
-import { fitTextToBoxes } from './svg-text-fit.js';
-import { loadSystemFontBuffers } from './fonts.js';
 
 export interface SvgRenderOptions extends RenderOptions {
   /** Optional: family name passed via `--font`. When set, the SVG is post-
@@ -18,6 +16,13 @@ export async function renderSvg(source: string, opts: SvgRenderOptions = {}): Pr
   const { userFont, userFontFile, ...renderOpts } = opts;
   const svg = renderMermaidSVG(source, renderOpts);
   if (!userFont && !userFontFile) return svg;
+  // Lazy-load the fit pass + fontkit only when actually needed. Keeping
+  // these out of the cold-start import graph saves ~150ms on slow runners
+  // (Bun on Windows) for every invocation that doesn't pass --font.
+  const [{ fitTextToBoxes }, { loadSystemFontBuffers }] = await Promise.all([
+    import('./svg-text-fit.js'),
+    import('./fonts.js'),
+  ]);
   const fonts = await loadSystemFontBuffers({
     ...(userFont ? { font: userFont } : {}),
     ...(userFontFile ? { fontFile: userFontFile } : {}),

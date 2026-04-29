@@ -199,7 +199,9 @@ describe('renderSvg userFont integration', () => {
     expect(a).toMatch(/viewBox="0 0 [\d.]+ [\d.]+"/);
   });
 
-  it('threads userFont through and runs the fit pass', { timeout: 30_000 }, async () => {
+  // Bun on Windows runners are ~5x slower than mac/linux; 60s is the safe
+  // upper bound observed across CI history.
+  it('threads userFont through and runs the fit pass', { timeout: 60_000 }, async () => {
     const fonts = await loadSystemFontBuffers();
     if (!fonts.latinFamily) {
       console.warn('skipped: no Latin font available.');
