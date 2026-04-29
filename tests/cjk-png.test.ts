@@ -18,7 +18,7 @@ describe('CJK PNG rendering', () => {
   it(
     'emits a valid PNG for a Mermaid diagram containing CJK text',
     async () => {
-      const svg = renderSvg(CJK_SOURCE, buildRenderOptions({ theme: 'zinc-light' }));
+      const svg = await renderSvg(CJK_SOURCE, buildRenderOptions({ theme: 'zinc-light' }));
       // The SVG must carry the CJK characters before we hand it to resvg.
       expect(svg).toMatch(/中文测试/);
 
@@ -58,7 +58,7 @@ describe('CJK PNG rendering', () => {
       const withOverride = await loadSystemFontBuffers({ font: baseline.latinFamily });
       expect(withOverride.userFamily).toBeTruthy();
 
-      const svg = renderSvg(CJK_SOURCE, buildRenderOptions({ theme: 'zinc-light' }));
+      const svg = await renderSvg(CJK_SOURCE, buildRenderOptions({ theme: 'zinc-light' }));
       const png = await svgToPng(svg, { font: baseline.latinFamily });
       expect([...png.slice(0, 4)]).toEqual(PNG_MAGIC);
       expect(png.byteLength).toBeGreaterThan(100);
@@ -69,7 +69,7 @@ describe('CJK PNG rendering', () => {
   it(
     'warns and degrades gracefully when --font cannot be resolved',
     async () => {
-      const svg = renderSvg(
+      const svg = await renderSvg(
         'graph LR\n    A[hello]-->B[world]',
         buildRenderOptions({ theme: 'zinc-light' }),
       );

@@ -33,10 +33,11 @@ src/
 ├── commands/             # Subcommands (render / ascii / themes)
 ├── core/
 │   ├── options.ts        # Theme + flag → RenderOptions builder
-│   ├── render-svg.ts     # SVG pass-through to beautiful-mermaid
+│   ├── render-svg.ts     # SVG pass-through to beautiful-mermaid (+ optional fit pass)
 │   ├── render-ascii.ts   # ASCII / Unicode renderer
 │   ├── render-png.ts     # SVG → PNG via resvg-wasm (uses svg-flatten + fonts)
 │   ├── svg-flatten.ts    # CSS var() / color-mix() → concrete hex (PNG-only)
+│   ├── svg-text-fit.ts   # Font-aware width compensation when --font is set
 │   └── fonts.ts          # System font probing, returns Uint8Array buffers
 ├── io/                   # input.ts (file/stdin/-c), output.ts
 └── utils/                # format inference, error formatting
@@ -145,6 +146,38 @@ glyphs fall through to `cjkFamily`). When the user-supplied family is
 not found on the system, `loadSystemFontBuffers()` emits a one-shot
 stderr warning and degrades to the hardcoded candidate fallback path —
 the render never fails just because a custom font was missing.
+
+#### Font-aware width compensation (`svg-text-fit.ts`)
+
+beautiful-mermaid measures text width with a hardcoded char-class
+heuristic tuned for Inter (see `node_modules/beautiful-mermaid/src/text-metrics.ts`).
+When the user supplies a wider font (HarmonyOS Sans, Source Han Sans,
+etc.), CJK and mixed-script labels can overflow the rect sized for
+Inter. The fit pass closes that gap **only when `--font` / `--font-file`
+is set** — the no-flag case is byte-exact identical to v0.2.2 output.
+
+Pipeline: `renderSvg` runs after `renderMermaidSVG` and remeasures every
+text node with fontkit against the user's actual font (with per-codepoint
+fallback through the loaded buffers). For each rect-bearing `<g>`
+(node / subgraph outer + header / edge-label) it expands the rect
+symmetrically — `oldX -= delta/2; oldW += delta` — so `text-anchor="middle"`
+is preserved (text x is untouched). Stadium nodes use `avail = w - h * 0.85`
+to leave room for the elliptical caps. Subgraph outers get a second pass
+that grows them to enclose any child node whose new bbox exceeds the
+original outer. Polyline edges are reflowed by matching `data-from` /
+`data-to` to box `data-id` and shifting endpoint X by the same amount the
+adjacent box edge moved, with collinear interior vertices dragged along
+to keep orthogonal routing intact.
+
+Path-shape nodes (hexagon / diamond / cylinder / ...) are out of scope in
+v1: the rect → path remap is non-trivial because the bounding box and
+visible shape diverge. We emit a one-shot stderr warning when a non-rect
+shape is detected, and otherwise leave the SVG alone.
+
+**SVG dimensions may grow.** When an expanded rect crosses the original
+viewBox, the pass widens `viewBox` and the `width` attribute to keep the
+content visible. The JSON `dimensions` field reflects the post-fit box,
+which is additive under `schema_version: 1`.
 
 ### Emoji handling: shaping shim, glyph rendering disabled
 

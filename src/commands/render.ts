@@ -100,7 +100,11 @@ export async function renderAction(
   const opts = buildRenderOptions(flags);
   let svg: string;
   try {
-    svg = renderSvg(source, opts);
+    svg = await renderSvg(source, {
+      ...opts,
+      ...(flags.font !== undefined ? { userFont: flags.font } : {}),
+      ...(flags.fontFile !== undefined ? { userFontFile: flags.fontFile } : {}),
+    });
   } catch (e) {
     throw new ParseError(e instanceof Error ? e.message : String(e), source);
   }

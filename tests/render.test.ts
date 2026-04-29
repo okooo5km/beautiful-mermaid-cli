@@ -20,7 +20,7 @@ describe('SVG render matrix', () => {
     for (const theme of THEMES) {
       it(`${fixture} × ${theme} -> valid SVG`, async () => {
         const src = await loadFixture(fixture);
-        const svg = renderSvg(src, buildRenderOptions({ theme }));
+        const svg = await renderSvg(src, buildRenderOptions({ theme }));
         expect(svg).toMatch(/<svg[\s>]/);
         expect(svg).toMatch(/<\/svg>\s*$/);
       });
@@ -35,7 +35,7 @@ describe('PNG render matrix', () => {
         `${fixture} × ${theme} -> valid PNG`,
         async () => {
           const src = await loadFixture(fixture);
-          const svg = renderSvg(src, buildRenderOptions({ theme }));
+          const svg = await renderSvg(src, buildRenderOptions({ theme }));
           const png = await svgToPng(svg);
           expect([...png.slice(0, 4)]).toEqual(PNG_MAGIC);
           expect(png.byteLength).toBeGreaterThan(100);
