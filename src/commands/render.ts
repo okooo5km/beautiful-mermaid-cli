@@ -130,7 +130,13 @@ export async function renderAction(
     return;
   }
 
-  const png = await svgToPng(svg, { scale: flags.scale, width: flags.width });
+  const png = await svgToPng(svg, {
+    ...(flags.scale !== undefined ? { scale: flags.scale } : {}),
+    ...(flags.width !== undefined ? { width: flags.width } : {}),
+    ...(flags.font !== undefined ? { font: flags.font } : {}),
+    ...(flags.fontMono !== undefined ? { fontMono: flags.fontMono } : {}),
+    ...(flags.fontFile !== undefined ? { fontFile: flags.fontFile } : {}),
+  });
   if (flags.json) {
     // PNG always has -o here (guarded above).
     await writeFileSafe(flags.output!, png);

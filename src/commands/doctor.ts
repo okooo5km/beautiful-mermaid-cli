@@ -17,6 +17,11 @@ interface DoctorReport {
   fonts: {
     available: string[];
     primary_family: string;
+    /** First Latin-coverage family loaded (additive in v1). */
+    latin_family?: string;
+    /** First CJK-coverage family loaded (additive in v1). Absent ⇒ CJK text
+     *  in PNG output will render as tofu boxes. */
+    cjk_family?: string;
     buffers: number;
   };
   wasm_loaded: boolean;
@@ -61,6 +66,8 @@ async function buildReport(): Promise<DoctorReport> {
     fonts: {
       available: families,
       primary_family: loaded.primaryFamily,
+      ...(loaded.latinFamily ? { latin_family: loaded.latinFamily } : {}),
+      ...(loaded.cjkFamily ? { cjk_family: loaded.cjkFamily } : {}),
       buffers: loaded.buffers.length,
     },
     wasm_loaded: wasm.loaded,
@@ -102,6 +109,14 @@ function renderHuman(r: DoctorReport): string {
   if (r.fonts.available.length > 0) {
     lines.push(`     ${dim('available:')} ${r.fonts.available.join(', ')}`);
   }
+  const cjkOk = Boolean(r.fonts.cjk_family);
+  lines.push(
+    `  ${check(cjkOk, useColor)}${dim('CJK font   ')} ${
+      cjkOk
+        ? r.fonts.cjk_family!
+        : 'none — install fonts-noto-cjk (Debian/Ubuntu) or equivalent'
+    }`,
+  );
   return lines.join('\n');
 }
 

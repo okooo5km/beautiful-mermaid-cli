@@ -26,11 +26,20 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: 'npm'
 
+      - name: Install CJK + emoji fonts (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y fonts-noto-cjk fonts-noto-color-emoji
+
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+      - name: CJK font smoke (post-build)
+        run: |
+          node dist/cli.js doctor --json > doctor.json
+          node -e "const r=require('./doctor.json'); if(!r.fonts.cjk_family){console.error('FAIL: no cjk_family detected'); console.error(JSON.stringify(r.fonts,null,2)); process.exit(1)}; console.log('OK: cjk_family =',r.fonts.cjk_family)"
 
   test-bun:
     name: Test (Bun on ${{ matrix.os }})
@@ -46,7 +55,16 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Install CJK + emoji fonts (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y fonts-noto-cjk fonts-noto-color-emoji
+
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun run test
       - run: bun run build
+
+      - name: CJK font smoke (post-build)
+        run: |
+          bun run dist/cli.js doctor --json > doctor.json
+          node -e "const r=require('./doctor.json'); if(!r.fonts.cjk_family){console.error('FAIL: no cjk_family detected'); console.error(JSON.stringify(r.fonts,null,2)); process.exit(1)}; console.log('OK: cjk_family =',r.fonts.cjk_family)"

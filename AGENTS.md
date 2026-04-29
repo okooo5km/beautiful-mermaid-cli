@@ -81,6 +81,128 @@ loading. The wasm path is intentional. If a future version of resvg-wasm
 adds CSS L5 support upstream, `svg-flatten.ts` becomes vestigial and can
 be deleted in one shot.
 
+### CJK rendering
+
+CJK (中 / 日 / 한) glyphs are mostly absent from the Latin candidates above,
+so loading only Helvetica/DejaVu/Arial produces tofu boxes for any non-Latin
+text. The fix has two parts, both already wired:
+
+1. **Per-OS CJK candidates** — `src/core/fonts.ts` probes a second list of
+   well-known CJK font paths after the Latin list and tags them
+   `coverage: 'cjk'`. Default candidates:
+   - **macOS** — `/System/Library/Fonts/PingFang.ttc` (`PingFang SC`,
+     pan-CJK), `Hiragino Sans GB.ttc`, `ヒラギノ角ゴシック W3.ttc`
+     (`Hiragino Sans` JP), `AppleSDGothicNeo.ttc` (KR).
+   - **Windows** — `msyh.ttc` (`Microsoft YaHei`, SC), `msjh.ttc`
+     (`Microsoft JhengHei`, TC), `simsun.ttc`, `YuGothR.ttc` /
+     `YuGothic.ttc` (`Yu Gothic`, JP), `meiryo.ttc`,
+     `malgun.ttf` (`Malgun Gothic`, KR).
+   - **Linux** — Noto Sans CJK at the Debian/Ubuntu, Fedora, and Arch
+     paths, then WenQuanYi Micro Hei / Zen Hei as legacy fallbacks. Linux
+     does **not** ship CJK fonts by default — users on minimal images
+     (Docker `node:slim`, etc.) must install one explicitly:
+     `apt install fonts-noto-cjk` / `dnf install google-noto-sans-cjk-fonts`
+     / `pacman -S noto-fonts-cjk`. `bm doctor` reports `cjk_family: none`
+     when nothing was found, and `bm render -o foo.png` writes a one-shot
+     stderr warning the first time CJK text is detected without a CJK font.
+
+2. **font-family stack rewrite** — the old code rewrote every `font-family`
+   declaration to a single Latin family, which defeated resvg/usvg's
+   per-glyph fallback. `svg-flatten.ts` now takes `fontFamilyStack: string[]`
+   instead and emits a `Latin, CJK, sans-serif` stack so resvg falls through
+   to the CJK family on a per-glyph basis. Generic CSS keywords pass through
+   bare; quoted family names are emitted with double quotes in `<style>`
+   rules and single quotes in XML attributes (so the attribute's outer
+   double quotes are not terminated).
+
+`bm doctor` exposes the loaded families separately as
+`fonts.latin_family` and `fonts.cjk_family` (both optional, additive in
+schema v1). The human output prints a dedicated `CJK font` row alongside
+the existing `fonts` row.
+
+### User font overrides
+
+v0.2.2 adds three flags that let the user (or an agent) override the
+default font choice on a per-render basis. They flow through different
+parts of the pipeline:
+
+| Flag              | SVG path                                  | PNG path                                                                 |
+|-------------------|-------------------------------------------|--------------------------------------------------------------------------|
+| `--font <family>` | Forwarded to beautiful-mermaid as `RenderOptions.font`; baked into the SVG markup. | Resolved via `font-discovery` against system font directories; loaded buffer prepended to `fontBuffers`; family inserted at the head of the family stack so resvg's per-glyph fallback prefers it. |
+| `--font-mono <family>` | **Ignored** — beautiful-mermaid does not yet expose a separate mono slot. | Same as `--font` but populates the mono slot, used by `flattenSvgForRaster` only when an SVG declaration contains the `monospace` keyword. |
+| `--font-file <path>`   | Ignored.                            | Read directly via `fs.readFile`; family name extracted with fontkit; takes priority over `--font` for the user-primary slot (avoids family-name disambiguation when multiple installed fonts share a name). |
+
+Stack composition in `render-png.ts`:
+
+```
+sansStack = [userFamily?, latinFamily?, cjkFamily?, 'sans-serif']
+monoStack = [userMonoFamily?, latinFamily?, cjkFamily?, 'monospace']
+```
+
+resvg/usvg walks the stack per glyph, so a Latin code font with no CJK
+coverage still produces correct output for mixed-script diagrams (CJK
+glyphs fall through to `cjkFamily`). When the user-supplied family is
+not found on the system, `loadSystemFontBuffers()` emits a one-shot
+stderr warning and degrades to the hardcoded candidate fallback path —
+the render never fails just because a custom font was missing.
+
+### Emoji handling: shaping shim, glyph rendering disabled
+
+resvg-wasm 2.6.x cannot render any modern color emoji format — COLRv1
+(Noto Color Emoji, Twemoji, Segoe UI Emoji v2), sbix (Apple Color Emoji),
+or SVG-in-OpenType (Adobe). We verified empirically: feeding only emoji
+fonts plus an emoji-only SVG to resvg produces a blank PNG.
+
+Even worse, **without** an emoji font in `fontBuffers`, mixed-script text
+breaks: a `[🚀 中文]` label renders entirely as tofu, including the CJK
+characters. resvg's per-glyph fallback shaping seems to fail across the
+whole text run when no font's cmap covers an emoji codepoint.
+
+Mitigation in `fonts.ts`: load the OS-bundled emoji font as a *shaping
+shim* — its cmap covers emoji codepoints, which prevents the per-glyph
+shaper from corrupting the rest of the run. The emoji glyphs themselves
+still fail (blank space) but Latin / CJK render correctly.
+
+Coverage is `'emoji'`. Per-platform shim:
+
+- **macOS**: `/System/Library/Fonts/Apple Color Emoji.ttc` (sbix, ships
+  with the OS — always present).
+- **Windows**: `C:\Windows\Fonts\seguiemj.ttf` (COLR, Vista+).
+- **Linux**: `Noto Color Emoji` from `fonts-noto-color-emoji` (apt) /
+  `google-noto-color-emoji-fonts` (dnf) / `noto-fonts-emoji` (pacman).
+  When absent, mixed emoji + CJK input may break — CI installs
+  `fonts-noto-cjk` but not the emoji package, so this is a known soft
+  spot for minimal Linux containers without the emoji package.
+
+`LoadedFonts` does **not** expose `emojiFamily`, and the family stack
+emitted by `flattenSvgForRaster` does **not** include the emoji family.
+The shim is intentionally invisible to consumers because exposing it as
+`emoji_family` would mislead users into thinking emoji glyphs render.
+`render-png.ts` emits a one-shot stderr warning when SVG contains emoji
+codepoints.
+
+`font-discovery.ts` keeps the `'emoji'` coverage tag for the unrelated
+`bm fonts --filter emoji` command — that command lists what emoji fonts
+are installed system-wide, separate from the PNG-render shim slot.
+
+When resvg-wasm gains real color-emoji support upstream, the cleanup
+path: re-introduce `emojiFamily` to `LoadedFonts`, append it to the
+family stacks in `render-png.ts`, surface `emoji_family` in doctor, and
+remove the warning.
+
+### `bm fonts` and `font-discovery.ts`
+
+The `bm fonts` command (and the `--font` / `--font-file` resolution)
+share `src/core/font-discovery.ts`, which uses `fontkit` to parse every
+`.ttf` / `.otf` / `.ttc` / `.otc` it finds under the OS-standard font
+directories. fontkit is added to `dependencies` (~5.6 MB, 9 transitive
+deps, pure JS, supports `.ttc`).
+
+`font-discovery.ts` is **not** in the PNG default hot path. The
+hardcoded candidate list in `fonts.ts` still serves the no-flag PNG
+case in millisecond cold-start. Discovery only runs when the user
+passes `--font` / `--font-file` / runs `bm fonts`.
+
 ## Agent Interface Contract
 
 Since v0.2.0, every subcommand accepts `--json` for machine-readable output.

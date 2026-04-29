@@ -15,14 +15,30 @@ interface RGBA {
 }
 
 export interface FlattenOptions {
-  /** Font family name to substitute for the SVG's font-family declarations.
-   *  resvg-wasm cannot resolve "Inter" / "system-ui" so we replace with a name
-   *  matching whatever fontBuffers we actually load. Default: 'sans-serif'. */
-  fontFamily?: string;
+  /** Family stack to substitute for SVG font-family declarations on
+   *  proportional (sans/serif) text. resvg/usvg walks the stack per glyph:
+   *  put the Latin family first (so Latin glyphs render as Latin font), then
+   *  the CJK family (so CJK glyphs fall through), then a generic at the end
+   *  as last resort. Default: ['sans-serif']. */
+  fontFamilyStack?: string[];
+  /** Family stack for declarations that contain the `monospace` keyword.
+   *  Used when beautiful-mermaid (or future Mermaid backends) emits a
+   *  separate font-family for code-like elements. Default: same as
+   *  `fontFamilyStack` with 'monospace' appended at the end. */
+  fontMonoFamilyStack?: string[];
 }
 
 export function flattenSvgForRaster(svg: string, opts: FlattenOptions = {}): string {
-  const fontFamily = opts.fontFamily ?? 'sans-serif';
+  const sansStack = (opts.fontFamilyStack ?? ['sans-serif']).map(toCssFamilyToken);
+  const monoStack = (opts.fontMonoFamilyStack ?? [...(opts.fontFamilyStack ?? []), 'monospace'])
+    .map(toCssFamilyToken);
+  const sansStyle = sansStack.join(', ');
+  const monoStyle = monoStack.join(', ');
+  // Inside an XML attribute, double quotes terminate the attribute, so any
+  // quoted family name in the stack must use single quotes there.
+  const sansAttr = sansStyle.replace(/"/g, "'");
+  const monoAttr = monoStyle.replace(/"/g, "'");
+  const isMono = (decls: string): boolean => /\bmonospace\b/i.test(decls);
 
   const rootVars = extractRootVars(svg);
   const cssVars = extractCssVars(svg);
@@ -48,13 +64,44 @@ export function flattenSvgForRaster(svg: string, opts: FlattenOptions = {}): str
     return `${prefix}${cache.get(name) ?? '#FFFFFF'}`;
   });
 
-  // Replace font-family declarations with one we know resvg has loaded.
-  // Match in <style> rules:
-  out = out.replace(/font-family\s*:\s*[^;}]+/g, `font-family: ${fontFamily}`);
-  // Match as XML attributes:
-  out = out.replace(/font-family="[^"]+"/g, `font-family="${fontFamily}"`);
+  // Replace font-family declarations with the stack we know resvg has loaded.
+  // resvg/usvg performs per-glyph fallback across the stack, which is the only
+  // way to mix Latin + CJK glyphs in a single text run.
+  // If the original declaration contains the `monospace` keyword, route it to
+  // the mono stack so user-supplied --font-mono can take effect on code-like
+  // elements without affecting the rest of the diagram.
+  out = out.replace(/font-family\s*:\s*([^;}]+)/g, (_m, decls: string) =>
+    `font-family: ${isMono(decls) ? monoStyle : sansStyle}`,
+  );
+  out = out.replace(/font-family="([^"]+)"/g, (_m, decls: string) =>
+    `font-family="${isMono(decls) ? monoAttr : sansAttr}"`,
+  );
 
   return out;
+}
+
+// Generic CSS family keywords pass through bare; any family name containing a
+// space or non-ASCII character must be quoted. Pre-quoted names (e.g. coming
+// from a previous round-trip) are passed through unchanged.
+const CSS_GENERIC_FAMILY = new Set([
+  'sans-serif',
+  'serif',
+  'monospace',
+  'cursive',
+  'fantasy',
+  'system-ui',
+  'ui-sans-serif',
+  'ui-serif',
+  'ui-monospace',
+]);
+
+function toCssFamilyToken(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) return 'sans-serif';
+  if (CSS_GENERIC_FAMILY.has(trimmed.toLowerCase())) return trimmed.toLowerCase();
+  if (/^["'].*["']$/.test(trimmed)) return trimmed;
+  if (/[\s]/.test(trimmed) || /[^\x20-\x7e]/.test(trimmed)) return `"${trimmed}"`;
+  return trimmed;
 }
 
 // ---- internals ----

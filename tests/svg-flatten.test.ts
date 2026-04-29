@@ -105,16 +105,58 @@ describe('flattenSvgForRaster · structural rewrites', () => {
       "text { font-family: 'Inter', system-ui, sans-serif; }",
       '<text>x</text>',
     );
-    const out = flattenSvgForRaster(svg, { fontFamily: 'Helvetica' });
+    const out = flattenSvgForRaster(svg, { fontFamilyStack: ['Helvetica'] });
     expect(out).toContain('font-family: Helvetica');
     expect(out).not.toContain("'Inter'");
-    expect(out).not.toContain('system-ui');
+    // The replacement is the full font-family declaration, so the original
+    // `system-ui` token should be gone.
+    expect(out).not.toMatch(/font-family[^;}]*system-ui/);
   });
 
   it('replaces font-family attribute on text elements', () => {
     const svg = wrap('', '<text font-family="Inter">x</text>');
-    const out = flattenSvgForRaster(svg, { fontFamily: 'Arial' });
+    const out = flattenSvgForRaster(svg, { fontFamilyStack: ['Arial'] });
     expect(out).toContain('font-family="Arial"');
+  });
+
+  it('emits a multi-family stack with CSS quoting in <style> and attributes', () => {
+    const svg = wrap(
+      "text { font-family: 'Inter', sans-serif; }",
+      '<text font-family="Inter">x</text>',
+    );
+    const out = flattenSvgForRaster(svg, {
+      fontFamilyStack: ['Helvetica', 'PingFang SC', 'sans-serif'],
+    });
+    // <style> rule: quoted families use double quotes
+    expect(out).toContain('font-family: Helvetica, "PingFang SC", sans-serif');
+    // XML attribute: outer double quotes ⇒ inner switches to single quotes
+    expect(out).toContain(`font-family="Helvetica, 'PingFang SC', sans-serif"`);
+  });
+
+  it('routes monospace declarations to the mono stack', () => {
+    const svg = wrap(
+      "text.code { font-family: 'Menlo', monospace; }\n" +
+        "text.body { font-family: 'Inter', sans-serif; }",
+      '<text class="code" font-family="Menlo, monospace">x</text>' +
+        '<text class="body" font-family="Inter, sans-serif">y</text>',
+    );
+    const out = flattenSvgForRaster(svg, {
+      fontFamilyStack: ['Helvetica', 'sans-serif'],
+      fontMonoFamilyStack: ['Fira Code', 'monospace'],
+    });
+    // <style>: code rule uses mono stack, body rule uses sans stack
+    expect(out).toContain('font-family: "Fira Code", monospace');
+    expect(out).toContain('font-family: Helvetica, sans-serif');
+    // attributes: same routing
+    expect(out).toContain(`font-family="'Fira Code', monospace"`);
+    expect(out).toContain('font-family="Helvetica, sans-serif"');
+  });
+
+  it('falls back to sansStack-with-monospace-appended when fontMonoFamilyStack is absent', () => {
+    const svg = wrap('text { font-family: monospace; }', '<text>x</text>');
+    const out = flattenSvgForRaster(svg, { fontFamilyStack: ['Helvetica'] });
+    // Default mono stack = [...sansStack, 'monospace']
+    expect(out).toContain('font-family: Helvetica, monospace');
   });
 
   it('substitutes var(--bg) inside background style', () => {

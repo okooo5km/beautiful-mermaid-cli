@@ -11,7 +11,14 @@ export interface CliRenderFlags {
   muted?: string;
   surface?: string;
   border?: string;
+  /** SVG font family (also applied to PNG via fontBuffers + family stack). */
   font?: string;
+  /** Monospace font family. PNG-only; beautiful-mermaid SVG output does not
+   *  yet expose a separate mono slot, so this flag affects only PNG. */
+  fontMono?: string;
+  /** Absolute path to a font file. PNG-only; takes priority over `font`
+   *  for the user-primary slot. */
+  fontFile?: string;
   padding?: number;
   nodeSpacing?: number;
   layerSpacing?: number;
@@ -19,7 +26,7 @@ export interface CliRenderFlags {
   transparent?: boolean;
 }
 
-const COLOR_KEYS = ['bg', 'fg', 'line', 'accent', 'muted', 'surface', 'border', 'font'] as const;
+const COLOR_KEYS = ['bg', 'fg', 'line', 'accent', 'muted', 'surface', 'border'] as const;
 const NUMERIC_KEYS = ['padding', 'nodeSpacing', 'layerSpacing', 'componentSpacing'] as const;
 
 export function buildRenderOptions(flags: CliRenderFlags): RenderOptions {
@@ -42,6 +49,9 @@ export function buildRenderOptions(flags: CliRenderFlags): RenderOptions {
     const v = flags[k];
     if (v !== undefined) overrides[k] = v;
   }
+  // Font is its own knob (it's a family name, not a hex color).
+  // fontMono and fontFile are PNG-only and are NOT forwarded to beautiful-mermaid.
+  if (flags.font !== undefined) overrides.font = flags.font;
   if (flags.transparent !== undefined) overrides.transparent = flags.transparent;
 
   return { ...base, ...overrides } as RenderOptions;

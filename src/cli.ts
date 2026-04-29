@@ -7,6 +7,7 @@ import { themesCommand } from './commands/themes.js';
 import { renderAction, type RenderCommandFlags } from './commands/render.js';
 import { asciiAction } from './commands/ascii.js';
 import { doctorCommand } from './commands/doctor.js';
+import { fontsCommand, type FontsFilter } from './commands/fonts.js';
 import { listThemeNames } from './core/options.js';
 import {
   CliError,
@@ -49,7 +50,9 @@ function addCommonRenderFlags(cmd: Command): Command {
     .option('--muted <hex>', 'Muted text color')
     .option('--surface <hex>', 'Node fill tint')
     .option('--border <hex>', 'Node/group border color')
-    .option('--font <family>', 'Font family')
+    .option('--font <family>', 'Font family (also applied to PNG via system fonts)')
+    .option('--font-mono <family>', 'Monospace font family (PNG only)')
+    .option('--font-file <path>', 'Path to a font file; overrides --font for PNG')
     .option('--padding <n>', 'Canvas padding (px, default: 40)', intParser)
     .option('--node-spacing <n>', 'Sibling node spacing (default: 24)', intParser)
     .option('--layer-spacing <n>', 'Layer spacing (default: 40)', intParser)
@@ -143,6 +146,25 @@ program
   .option('--json', 'Emit JSON output for AI agents')
   .action((opts: { quiet?: boolean; json?: boolean }) =>
     themesCommand({ quiet: opts.quiet ?? false, json: opts.json ?? false }),
+  );
+
+program
+  .command('fonts')
+  .description('List system fonts available for rendering')
+  .addOption(
+    new Option('--filter <kind>', 'Filter by coverage / class').choices([
+      'latin',
+      'cjk',
+      'emoji',
+      'mono',
+    ]),
+  )
+  .option('--json', 'Emit JSON output for AI agents')
+  .action((opts: { filter?: FontsFilter; json?: boolean }) =>
+    fontsCommand({
+      ...(opts.filter ? { filter: opts.filter } : {}),
+      json: opts.json ?? false,
+    }),
   );
 
 // Detect --json across the whole argv so the top-level catch can choose the

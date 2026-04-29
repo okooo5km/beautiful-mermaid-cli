@@ -159,9 +159,11 @@ inspect the boolean / array fields to decide what is usable.
   "platform": "darwin",
   "arch": "arm64",
   "fonts": {
-    "available": ["Helvetica", "Helvetica Neue", "Geneva", "Arial"],
+    "available": ["Helvetica", "Helvetica Neue", "Geneva", "Arial", "PingFang SC"],
     "primary_family": "Helvetica",
-    "buffers": 4
+    "latin_family": "Helvetica",
+    "cjk_family": "PingFang SC",
+    "buffers": 5
   },
   "wasm_loaded": true
 }
@@ -176,6 +178,8 @@ inspect the boolean / array fields to decide what is usable.
 | `arch`                  | string   | always                      | `process.arch` (`arm64`, `x64`, …).                    |
 | `fonts.available`       | string[] | always                      | Family names with on-disk font files (probed list).    |
 | `fonts.primary_family`  | string   | always                      | Family that PNG rendering will use as fallback.        |
+| `fonts.latin_family`    | string   | when a Latin font is loaded | First Latin-script family loaded (additive in v1).     |
+| `fonts.cjk_family`      | string   | when a CJK font is loaded   | First CJK family loaded; absence ⇒ tofu boxes for CJK in PNG. |
 | `fonts.buffers`         | integer  | always                      | Count of font files actually loaded into memory.       |
 | `wasm_loaded`           | boolean  | always                      | `true` if `@resvg/resvg-wasm` initialized successfully.|
 | `wasm_error`            | string   | only when `wasm_loaded=false` | Underlying error message from the load attempt.      |
@@ -183,6 +187,53 @@ inspect the boolean / array fields to decide what is usable.
 When `fonts.buffers === 0`, PNG output will lack text glyphs (graceful
 degradation; SVG output is unaffected). When `wasm_loaded === false`, PNG
 rendering will fail with exit code `1` (`WasmError`); SVG and ASCII still work.
+
+---
+
+## `bm fonts --json`
+
+Enumerates fonts on the system (recursively walking the OS standard font
+directories) and reports each face with its family name, coverage, and
+monospace flag. Use this to discover what is available before invoking
+`bm render --font <family>`.
+
+**stdout** (success):
+
+```json
+{
+  "schema_version": 1,
+  "fonts": [
+    {
+      "family": "PingFang SC",
+      "postscript_name": "PingFangSC-Regular",
+      "path": "/System/Library/Fonts/PingFang.ttc",
+      "index": 0,
+      "coverage": ["latin", "cjk"],
+      "is_monospace": false,
+      "style": "Regular"
+    }
+  ],
+  "count": 1
+}
+```
+
+| Field                | Type        | When present              | Notes                                                            |
+|----------------------|-------------|---------------------------|------------------------------------------------------------------|
+| `schema_version`     | `1`         | always                    |                                                                  |
+| `fonts`              | array       | always                    | One element per face. May be empty.                              |
+| `fonts[].family`     | string      | always                    | Primary family name from the font's name table.                  |
+| `fonts[].postscript_name` | string | when present              | PostScript name. Useful for unambiguous identification.          |
+| `fonts[].path`       | string      | always                    | Absolute path to the font file on disk.                          |
+| `fonts[].index`      | integer     | only inside a `.ttc`/`.otc` collection | Face index within the collection.                       |
+| `fonts[].coverage`   | string[]    | always                    | Subset of `["latin", "cjk", "emoji"]`. Probed via cmap lookup. **Emoji is reported for awareness only — PNG output cannot render emoji (resvg-wasm limitation); use SVG output.** |
+| `fonts[].is_monospace` | boolean   | always                    | `true` for code-style fonts (Mono / Code / Menlo / Consolas / panose-mono **without** CJK coverage). CJK fonts are excluded by design. |
+| `fonts[].style`      | string      | when present              | Subfamily (`Regular`, `Bold`, `Italic`, …).                      |
+| `count`              | integer     | always                    | Equals `fonts.length`.                                           |
+
+`--filter <kind>` narrows to `latin` / `cjk` / `mono`. Sorting is alphabetical by
+family. The first call in a process is the slow path (filesystem walk + fontkit
+parse, ~100 ms – 1 s depending on the font library size); subsequent calls are
+served from an in-memory cache.
 
 ---
 

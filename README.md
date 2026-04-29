@@ -57,6 +57,82 @@ bm themes
 
 See `bm --help` for all options.
 
+## PNG with CJK / 中文 PNG
+
+PNG output rasterizes the SVG via `@resvg/resvg-wasm`, which can only see
+fonts that `bm` has read off disk and handed to it as raw bytes (wasm has
+no filesystem). For Latin-only diagrams the bundled candidates (Helvetica /
+DejaVu / Arial) are enough; rendering Chinese / Japanese / Korean text
+requires a CJK font on the system:
+
+- **macOS** — `PingFang.ttc` ships with the OS (10.11+). Works out of the
+  box.
+- **Windows** — `Microsoft YaHei` / `Yu Gothic` / `Malgun Gothic` ship with
+  Windows Vista+. Works out of the box.
+- **Linux** — minimal images (Docker `node:slim`, scratch-based CI runners)
+  do not include CJK fonts. Install one explicitly:
+  - Debian / Ubuntu: `sudo apt install fonts-noto-cjk`
+  - Fedora: `sudo dnf install google-noto-sans-cjk-fonts`
+  - Arch: `sudo pacman -S noto-fonts-cjk`
+
+Run `bm doctor` to verify: it reports the resolved CJK family on the `CJK
+font` row (or prints an install hint if none was found). `bm render` will
+also emit a one-shot stderr warning when it detects CJK text in the input
+but no CJK font on the system.
+
+## Emoji
+
+**Use SVG output for emoji.** PNG rendering goes through `resvg-wasm`,
+which does not implement the color-emoji formats used by every modern
+emoji font (COLRv1: Noto Color Emoji / Twemoji / Segoe UI Emoji v2;
+sbix: Apple Color Emoji). Emoji codepoints render as blank space in the
+PNG. Surrounding Latin / CJK text is unaffected — `bm` loads the OS's
+bundled emoji font as a shaping shim so emoji codepoints don't corrupt
+the per-glyph fallback for neighbouring text.
+
+In SVG output, emoji are preserved as text — the viewer (browser, GitHub,
+editor) renders them via the OS's emoji font.
+
+```bash
+# Works: emoji appear when the SVG is opened
+bm render diagram.mmd -o out.svg
+
+# PNG: emoji glyphs missing, other text fine; bm prints a stderr warning
+bm render diagram.mmd -o out.png
+```
+
+If you need a PNG with emoji, render to SVG first then rasterize with a
+tool that uses a real text engine (Inkscape, librsvg, or headless Chrome).
+
+## Custom fonts
+
+Three flags let you pick the font used for rendering:
+
+```bash
+# By family name (resolved against installed system fonts)
+bm render diagram.mmd -o out.png --font 'PingFang SC'
+
+# Distinct mono font for code-class text (PNG only; sans-class text uses --font)
+bm render diagram.mmd -o out.png --font 'Inter' --font-mono 'JetBrains Mono'
+
+# By absolute path (overrides --font; bypasses family-name ambiguity)
+bm render diagram.mmd -o out.png --font-file /path/to/MyFont.ttf
+```
+
+`--font` is also forwarded to the SVG output (baked into the markup as
+`font-family`). `--font-mono` and `--font-file` are PNG-only; they participate
+in resvg's per-glyph fallback so mixed Latin/CJK diagrams still render correctly
+even when the chosen font has only Latin coverage.
+
+Discover what's installed:
+
+```bash
+bm fonts                       # human-readable listing, grouped by family
+bm fonts --filter cjk          # CJK fonts only
+bm fonts --filter mono         # monospace / code fonts only
+bm fonts --json | jq           # machine-readable; one entry per face
+```
+
 ## Use with AI Agents
 
 Every subcommand accepts `--json` for stable, machine-readable output. JSON data is
@@ -79,6 +155,9 @@ bm ascii --json -c $'graph LR\n  A-->B'
 
 # Self-check the environment (version, fonts, wasm)
 bm doctor --json
+
+# List installed fonts (filter: latin / cjk / mono)
+bm fonts --json --filter cjk
 
 # Errors are JSON too, on stderr; exit code is non-zero
 bm render --json --theme drakula -c $'graph LR\n  A-->B' 2>err.json; echo $?
