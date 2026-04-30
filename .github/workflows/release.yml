@@ -36,10 +36,62 @@ jobs:
       - name: Publish to npm via Trusted Publishing (OIDC, with provenance)
         run: npm publish
 
+      - name: Generate release notes from conventional commits
+        id: notes
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          PREV_TAG=$(git tag -l 'v*' --sort=-v:refname | grep -v "^${TAG}$" | head -1)
+
+          if [ -z "$PREV_TAG" ]; then
+            RANGE="HEAD"
+          else
+            RANGE="${PREV_TAG}..${TAG}"
+          fi
+
+          # Collect commits by conventional prefix (skip merge commits)
+          feats="" fixes="" perfs="" docs="" refactors="" chores="" others=""
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            # Strip prefix to get the message body
+            case "$line" in
+              feat:*|feat\(*\):*)     feats="${feats}\n- ${line#*: }" ;;
+              fix:*|fix\(*\):*)       fixes="${fixes}\n- ${line#*: }" ;;
+              perf:*|perf\(*\):*)     perfs="${perfs}\n- ${line#*: }" ;;
+              docs:*|docs\(*\):*)     docs="${docs}\n- ${line#*: }" ;;
+              refactor:*|refactor\(*\):*) refactors="${refactors}\n- ${line#*: }" ;;
+              ci:*|ci\(*\):*)         chores="${chores}\n- ${line#*: }" ;;
+              test:*|test\(*\):*)     chores="${chores}\n- ${line#*: }" ;;
+              chore:*|chore\(*\):*)   chores="${chores}\n- ${line#*: }" ;;
+              *)                      others="${others}\n- ${line}" ;;
+            esac
+          done < <(git log --format="%s" --no-merges "$RANGE" 2>/dev/null || true)
+
+          # Build markdown body
+          {
+            echo "body<<RELEASE_NOTES_EOF"
+            if [ -n "$PREV_TAG" ]; then
+              echo "## Changes since ${PREV_TAG}"
+            else
+              echo "## Changes"
+            fi
+            echo ""
+            [ -n "$feats" ]     && { echo "### ✨ Features"; echo -e "$feats"; echo ""; }
+            [ -n "$fixes" ]     && { echo "### 🐛 Bug Fixes"; echo -e "$fixes"; echo ""; }
+            [ -n "$perfs" ]     && { echo "### ⚡ Performance"; echo -e "$perfs"; echo ""; }
+            [ -n "$refactors" ] && { echo "### ♻️ Refactoring"; echo -e "$refactors"; echo ""; }
+            [ -n "$docs" ]      && { echo "### 📝 Documentation"; echo -e "$docs"; echo ""; }
+            [ -n "$chores" ]    && { echo "### 🔧 Chores"; echo -e "$chores"; echo ""; }
+            [ -n "$others" ]    && { echo "### 📦 Other"; echo -e "$others"; echo ""; }
+            if [ -n "$PREV_TAG" ]; then
+              echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${TAG}"
+            fi
+            echo "RELEASE_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          generate_release_notes: true
+          body: ${{ steps.notes.outputs.body }}
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
 
