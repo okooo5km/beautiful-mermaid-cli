@@ -345,6 +345,19 @@ The full per-command JSON schema (with examples) lives in
 - **No emojis in source code** unless explicitly requested.
 - **Strict TS**: `strict: true`, `noUncheckedIndexedAccess: true`.
 - **ESM only**: top-level `"type": "module"`, use `import`/`export`, no CommonJS.
+- **Commit messages**: follow [Conventional Commits](https://www.conventionalcommits.org/).
+  Release notes are auto-generated from the commit log at tag time (`release.yml`),
+  so message quality directly determines what users see in the GitHub Release.
+  - Use English for the message body.
+  - Prefix with `feat:`, `fix:`, `perf:`, `docs:`, `refactor:`, `ci:`, `test:`, `chore:`.
+  - Scope is optional: `feat(ascii): ...`, `fix(png): ...`.
+  - First line ≤ 72 chars. Add a body (separated by a blank line) when the "why"
+    is non-obvious.
+  - `feat:` = new user-facing capability; `fix:` = user-facing bug; `perf:` = no
+    behavior change, just faster/smaller; `refactor:` = no behavior change, just
+    cleaner code. Don't use `feat:` for internal-only changes.
+- **No manual CHANGELOG.md** — the GitHub Release is the single source of truth.
+  Don't create or maintain a `CHANGELOG.md` in the repo; it will go stale.
 - **Exit code semantics** (single source of truth: `src/utils/errors.ts`):
   - `0` success
   - `1` `WasmError` / unclassified
@@ -361,6 +374,10 @@ The full per-command JSON schema (with examples) lives in
 - All workflows use **latest major versions** of GitHub Actions (see `doc/PLAN.md` §9.5 lock table).
 - CI matrix (`ci.yml`): Node 20 / 22 (LTS only — 18 EOL'd 2025-04) × Ubuntu / macOS / Windows + Bun on all three OS.
 - Release (`release.yml`) triggered by `v*` git tag → npm publish → GitHub Release → Homebrew formula bump.
+- **Release notes are auto-generated** from conventional commits between the current
+  and previous tag. Commits are grouped into ✨ Features / 🐛 Bug Fixes / ⚡ Performance /
+  🔧 Chores / 📦 Other sections. No manual changelog step needed — just write good
+  commit messages (see "Commit messages" above).
 - **Trusted Publishing (OIDC)**: `npm publish` runs without `NPM_TOKEN`. The workflow declares `id-token: write` and the package has a Trusted Publisher configured at `npmjs.com/package/beautiful-mermaid-cli/access` pointing at this repo + `release.yml`. Provenance attestation is automatic.
 - **release.yml pins Node 24** (not the LTS-22 used by `ci.yml`) — Node 22's bundled npm 10.x lacks Trusted Publishing support, and `npm install -g npm@latest` mid-job hits a known self-upgrade bug (`MODULE_NOT_FOUND: promise-retry`). Node 24 ships npm 11.5+ out of the box.
 - **Homebrew tap**: `okooo5km/homebrew-tap` (existing shared tap, also hosts `mms`, `ogvs`, `pngoptim`, `svgift`). The release workflow opens a bump PR via `dawidd6/action-homebrew-bump-formula` and immediately squash-merges it via `gh pr merge` (no manual step). Direct merge is safe because the action computes `url` + `sha256` from the actual tarball; no human review can catch what `brew style` cannot. If a future release needs to be reviewed before publishing, drop the `Auto-merge Homebrew bump PR` step in `release.yml` for that run.
