@@ -47,5 +47,15 @@ export default [
       '@typescript-eslint/no-explicit-any': 'off',
     },
   },
+  {
+    // Vendored from upstream beautiful-mermaid (see src/ascii/LICENSE-NOTICE.md).
+    // We intentionally don't lint upstream style decisions to keep diffs minimal
+    // when re-syncing.
+    files: ['src/ascii/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-unused-vars': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
+  },
   prettierConfig,
 ];

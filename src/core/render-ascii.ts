@@ -1,6 +1,6 @@
 // ASCII renderer — okooo5km(十里)
 
-import { renderMermaidASCII, type AsciiRenderOptions } from 'beautiful-mermaid';
+import { renderMermaidASCII, type AsciiRenderOptions } from '../ascii/index.js';
 import { getThemeColors } from './options.js';
 
 export interface AsciiCliFlags {

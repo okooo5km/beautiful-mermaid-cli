@@ -34,11 +34,17 @@ src/
 ├── core/
 │   ├── options.ts        # Theme + flag → RenderOptions builder
 │   ├── render-svg.ts     # SVG pass-through to beautiful-mermaid (+ optional fit pass)
-│   ├── render-ascii.ts   # ASCII / Unicode renderer
+│   ├── render-ascii.ts   # ASCII / Unicode renderer (calls into src/ascii/)
 │   ├── render-png.ts     # SVG → PNG via resvg-wasm (uses svg-flatten + fonts)
 │   ├── svg-flatten.ts    # CSS var() / color-mix() → concrete hex (PNG-only)
 │   ├── svg-text-fit.ts   # Font-aware width compensation when --font is set
 │   └── fonts.ts          # System font probing, returns Uint8Array buffers
+├── ascii/                # Vendored ASCII pipeline (see "Vendored ASCII pipeline" below)
+│   ├── width.ts          # CJK-aware displayWidth / charWidth helpers
+│   ├── mermaid-types.ts  # Subset of upstream parser types (MermaidGraph etc.)
+│   ├── parsers/          # Vendored sequence/class/er/xychart sub-parsers
+│   ├── shapes/           # Vendored node-shape renderers
+│   └── *.ts              # canvas / draw / sequence / er-diagram / etc.
 ├── io/                   # input.ts (file/stdin/-c), output.ts
 └── utils/                # format inference, error formatting
 tests/
@@ -49,6 +55,67 @@ skills/
                           # Auto-discovered by `npx skills add okooo5km/beautiful-mermaid-cli`.
                           # Not bundled in the npm tarball — agents pull it from GitHub.
 ```
+
+## Vendored ASCII pipeline (`src/ascii/`)
+
+The ASCII renderer is **vendored** from upstream
+[`beautiful-mermaid`](https://github.com/lukilabs/beautiful-mermaid)
+v1.1.3 instead of imported from the npm package. The whole `src/ascii/`
+directory (canvas / draw / shapes / sequence / class-diagram / er-diagram
+/ xychart) plus the ASCII-only sub-parsers under `src/ascii/parsers/` are
+copies, not generated.
+
+**Why vendor.** Two reasons:
+
+1. The upstream sub-parsers (`sequence/parser.ts`, `class/parser.ts`,
+   `er/parser.ts`, `xychart/parser.ts`) are **not** in the package's
+   public `exports`. Deep imports like `beautiful-mermaid/src/...` fail
+   under `package.json#exports`. We need them because the ASCII
+   renderers depend on them directly.
+2. We patched **CJK display-width support** that hasn't been upstreamed
+   yet. `String#length` counts UTF-16 code units; terminals render
+   wide CJK glyphs as two columns. The vendored copy fixes every
+   layout site (`displayWidth(...)` from `src/ascii/width.ts`) and
+   reworks `drawText` so wide glyphs reserve two canvas cells (a real
+   char + an empty-string sentinel that prints as zero columns). Without
+   this, every box / edge label / lifeline misaligns by half a glyph
+   per CJK character.
+
+**What is NOT vendored.** SVG rendering, `parseMermaid()`, themes
+(`THEMES`, `DEFAULTS`, `DiagramColors`), and the public `MermaidGraph`
+type still come from the npm package — no need to fork them.
+
+**License.** Upstream is MIT; the notice lives at
+`src/ascii/LICENSE-NOTICE.md` and the project-level
+`THIRD_PARTY_NOTICES.md`.
+
+### Vendor sync flow
+
+When upstream `beautiful-mermaid` ships a bug fix or feature in
+`src/ascii/` worth pulling in:
+
+1. `npm i beautiful-mermaid@<new>` — refresh the source of truth in
+   `node_modules/`.
+2. Diff `node_modules/beautiful-mermaid/src/ascii/` against
+   `src/ascii/` (excluding `width.ts`, `mermaid-types.ts`, and
+   `parsers/parser-utils.ts`, which are local additions).
+3. Cherry-pick upstream changes by hand. Keep our CJK modifications:
+   - `displayWidth(...)` everywhere upstream still uses `.length` for
+     terminal columns.
+   - The two-cell write pattern in `drawText` and the per-shape /
+     per-section text loops.
+   - Imports rewritten to the local `parsers/` and the inlined
+     `MIX` constants in `ansi.ts`.
+4. Same diff dance for `parsers/sequence.ts`, `parsers/class.ts`,
+   `parsers/er.ts`, `parsers/xychart.ts`,
+   `parsers/{sequence,class,er,xychart}-types.ts`,
+   and `parsers/xychart-colors.ts`.
+5. `npm run typecheck && npm run lint && npm test`. The CJK suite at
+   `tests/cjk-ascii.test.ts` is the regression net — if a sync breaks
+   alignment, those tests will catch it.
+
+If lukilabs accepts the CJK fixes upstream, drop the vendor entirely
+and revert `src/core/render-ascii.ts` to import from `beautiful-mermaid`.
 
 ## PNG rendering pipeline (resvg-wasm constraints)
 
