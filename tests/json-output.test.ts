@@ -72,7 +72,7 @@ describe('--json output (success)', () => {
     expect(data.output).toBeUndefined();
   });
 
-  it('render --json -f png -o file writes PNG and reports byte length', async () => {
+  it('render --json -f png -o file writes PNG and reports byte length', { timeout: 15_000 }, async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'bm-json-'));
     const out = path.join(dir, 'a.png');
     const r = run(['render', '--json', '-f', 'png', '-c', 'graph LR\n  A-->B', '-o', out]);

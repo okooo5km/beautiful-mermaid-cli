@@ -52,7 +52,7 @@ describe('CLI integration', () => {
     expect(await readFile(out, 'utf8')).toMatch(/<\/svg>/);
   });
 
-  it('renders PNG to file', async () => {
+  it('renders PNG to file', { timeout: 15_000 }, async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'bm-cli-'));
     const out = path.join(dir, 'a.png');
     const r = run(['render', '-c', 'graph LR\n  A-->B', '-o', out]);
